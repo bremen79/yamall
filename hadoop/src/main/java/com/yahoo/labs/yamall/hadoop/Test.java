@@ -173,7 +173,7 @@ public class Test extends Configured implements Tool {
         rootLogger.setLevel(level);
         ConsoleAppender ca = new ConsoleAppender();
         ca.setWriter(new OutputStreamWriter(System.out));
-        ca.setLayout(new PatternLayout("%-5p [%t]: %m%n"));
+        ca.setLayout(new PatternLayout("%-5p [%t] %c - %m%n"));
         rootLogger.addAppender(ca);
     }
 
