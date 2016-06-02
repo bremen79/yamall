@@ -116,7 +116,11 @@ public class Train extends Configured implements Tool {
         private static final String MODEL_TXT = "model.txt";
         private Learner learner;
         private HashMapInt2StringWritable hm;
-        private Logger logger = Logger.getLogger(Train.class);
+        private Logger logger = Logger.getLogger(TrainReducer.class);
+        long iter = 0;
+        double cumLoss = 0;
+        double weightedSampleSum = 0;
+        final long limit = 10000;
 
         /**
          * Reducer starts
@@ -164,12 +168,8 @@ public class Train extends Configured implements Tool {
         public void reduce(DoubleWritable key, Iterable<InstanceOrHashMapWritable> values, Context context)
                 throws IOException, InterruptedException {
 
-            long iter = 0;
             Instance sample = new Instance();
             double score;
-            double cumLoss = 0;
-            double weightedSampleSum = 0;
-            final long limit = 10000;
 
             // feed with examples
             for (InstanceOrHashMapWritable val : values) {
@@ -182,7 +182,7 @@ public class Train extends Configured implements Tool {
                     score = learner.update(sample);
                     cumLoss += learner.getLoss().lossValue(score, sample.getLabel()) * sample.getWeight();
                     weightedSampleSum += sample.getWeight();
-                    if (iter == limit) {
+                    if (iter % limit == 0) {
                         logger.info(String.format("%.6f %12d  % .4f  % .4f  %d\n", cumLoss / weightedSampleSum, iter,
                                 sample.getLabel(), score, sample.getVector().size()));
                     }
@@ -198,7 +198,7 @@ public class Train extends Configured implements Tool {
         rootLogger.setLevel(level);
         ConsoleAppender ca = new ConsoleAppender();
         ca.setWriter(new OutputStreamWriter(System.out));
-        ca.setLayout(new PatternLayout("%-5p [%t]: %m%n"));
+        ca.setLayout(new PatternLayout("%-5p [%t] %c - %m%n"));
         rootLogger.addAppender(ca);
     }
 
