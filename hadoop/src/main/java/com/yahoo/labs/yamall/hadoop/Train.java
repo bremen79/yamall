@@ -47,16 +47,13 @@ import com.yahoo.labs.yamall.parser.VWParser;
  * 
  * Train a yamall model.
  * 
- * @author ghalawi, francesco
+ * @author Guy Halawi (ghalawi@yahoo-inc.com), Francesco Orabona (francesco@yahoo-inc.com)
  * @version 1.0
  */
 public class Train extends Configured implements Tool {
 
     /**
      * Mapper - Read examples and write them shuffled
-     * 
-     * @author ghalawi
-     *
      */
     public static class TrainMapper extends Mapper<Object, Text, DoubleWritable, InstanceOrHashMapWritable> {
 
@@ -112,9 +109,6 @@ public class Train extends Configured implements Tool {
 
     /**
      * Reducer - For each example arrived, push it to learner class. When finished, save the model and move to HDFS
-     * 
-     * @author ghalawi
-     *
      */
     public static class TrainReducer extends Reducer<DoubleWritable, InstanceOrHashMapWritable, Text, Text> {
 
@@ -122,6 +116,7 @@ public class Train extends Configured implements Tool {
         private static final String MODEL_TXT = "model.txt";
         private Learner learner;
         private HashMapInt2StringWritable hm;
+        private Logger logger = Logger.getLogger(Train.class);
 
         /**
          * Reducer starts
@@ -169,16 +164,28 @@ public class Train extends Configured implements Tool {
         public void reduce(DoubleWritable key, Iterable<InstanceOrHashMapWritable> values, Context context)
                 throws IOException, InterruptedException {
 
+            long iter = 0;
             Instance sample = new Instance();
+            double score;
+            double cumLoss = 0;
+            double weightedSampleSum = 0;
+            final long limit = 10000;
 
             // feed with examples
             for (InstanceOrHashMapWritable val : values) {
                 if (val.getType() == TypeWritable.INSTANCE) {
+                    iter++;
                     InstanceNoTagWritable tmp = (InstanceNoTagWritable) (val.getObject());
                     sample.setLabel(tmp.getLabel());
                     sample.setWeight(tmp.getWeight());
                     sample.setVector(tmp.getSparseVector().getEntries());
-                    learner.update(sample);
+                    score = learner.update(sample);
+                    cumLoss += learner.getLoss().lossValue(score, sample.getLabel()) * sample.getWeight();
+                    weightedSampleSum += sample.getWeight();
+                    if (iter == limit) {
+                        logger.info(String.format("%.6f %12d  % .4f  % .4f  %d\n", cumLoss / weightedSampleSum, iter,
+                                sample.getLabel(), score, sample.getVector().size()));
+                    }
                 }
                 else
                     hm.merge((HashMapInt2StringWritable) val.getObject());
